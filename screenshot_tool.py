@@ -13,6 +13,7 @@ import ctypes
 from ctypes import wintypes
 from pystray import Icon, MenuItem as Item, Menu
 from screeninfo import get_monitors
+import darkdetect
 
 # ===================== Windows GDI 截图核心 =====================
 user32 = ctypes.WinDLL('user32', use_last_error=True)
@@ -100,52 +101,109 @@ def get_work_area():
     return rect.left, rect.top, rect.right, rect.bottom
 
 
-# ===================== 扁平化双主题 =====================
+# ===================== 主题配置 =====================
 class ThemeManager:
     LIGHT = {
-        "bg": "#FFFFFF",
-        "fg": "#2D3748",
-        "frame_bg": "#F8FAFC",
+        "bg": "#F5F7FA",
+        "fg": "#1E1E1E",
+        "frame_bg": "#FFFFFF",
+        "frame_fg": "#2C3E50",
         "entry_bg": "#FFFFFF",
-        "entry_fg": "#2D3748",
-        "primary": "#4FC3F7",
-        "primary_hover": "#81D4FA",
-        "danger": "#EF5350",
-        "warning": "#FF9800",
-        "success": "#26A69A",
-        "border": "#E2E8F0",
-        "list_select": "#4FC3F7",
-        "status_run": "#26A69A",
-        "status_stop": "#EF5350",
-        "placeholder": "#94A3B8",
-        "edit_bg": "#FFF9C4",
+        "entry_fg": "#1E1E1E",
+        "entry_border": "#D0D7DE",
+        "primary": "#4A90E2",
+        "primary_hover": "#5BA0F5",
+        "danger": "#E74C3C",
+        "warning": "#F39C12",
+        "success": "#27AE60",
+        "border": "#E1E4E8",
+        "list_bg": "#FFFFFF",
+        "list_fg": "#1E1E1E",
+        "list_select": "#4A90E2",
+        "list_select_fg": "#FFFFFF",
+        "status_run": "#27AE60",
+        "status_stop": "#E74C3C",
+        "placeholder": "#8B949E",
+        "edit_bg": "#FFFDE7",
+        "edit_fg": "#1E1E1E",
+        "scrollbar_bg": "#D0D7DE",
+        "ball_color": (74, 144, 226),
+        "empty_text": "#8B949E",
+        "stop_btn_enabled_bg": "#E74C3C",
+        "stop_btn_enabled_fg": "#FFFFFF",
+        "stop_btn_disabled_bg": "#E1E4E8",
+        "stop_btn_disabled_fg": "#8B949E",
+        "status_label_bg": "#FFFFFF",
+        "path_entry_fg": "#1E1E1E",
+        "header_fg": "#2C3E50",
     }
+
     DARK = {
-        "bg": "#1E293B",
-        "fg": "#F1F5F9",
-        "frame_bg": "#334155",
-        "entry_bg": "#475569",
-        "entry_fg": "#F1F5F9",
-        "primary": "#4FC3F7",
-        "danger": "#EF5350",
-        "warning": "#FF9800",
-        "success": "#26A69A",
-        "border": "#475569",
-        "list_select": "#4FC3F7",
-        "status_run": "#26A69A",
-        "status_stop": "#EF5350",
-        "placeholder": "#64748B",
-        "edit_bg": "#5D4E37",
+        "bg": "#1A1E24",
+        "fg": "#E6E6E6",
+        "frame_bg": "#21262D",
+        "frame_fg": "#E6E6E6",
+        "entry_bg": "#161B22",
+        "entry_fg": "#E6E6E6",
+        "entry_border": "#30363D",
+        "primary": "#388BFD",
+        "primary_hover": "#58A6FF",
+        "danger": "#F85149",
+        "warning": "#D29922",
+        "success": "#3FB950",
+        "border": "#30363D",
+        "list_bg": "#161B22",
+        "list_fg": "#E6E6E6",
+        "list_select": "#388BFD",
+        "list_select_fg": "#FFFFFF",
+        "status_run": "#3FB950",
+        "status_stop": "#F85149",
+        "placeholder": "#6E7681",
+        "edit_bg": "#1F2A3A",
+        "edit_fg": "#E6E6E6",
+        "scrollbar_bg": "#30363D",
+        "ball_color": (56, 139, 253),
+        "empty_text": "#8B949E",
+        "stop_btn_enabled_bg": "#F85149",
+        "stop_btn_enabled_fg": "#FFFFFF",
+        "stop_btn_disabled_bg": "#30363D",
+        "stop_btn_disabled_fg": "#8B949E",
+        "status_label_bg": "#21262D",
+        "path_entry_fg": "#E6E6E6",
+        "header_fg": "#E6E6E6",
     }
 
     def __init__(self):
-        self.current = self.LIGHT
-        self.is_dark = False
+        try:
+            is_dark = darkdetect.isDark()
+        except:
+            is_dark = False
+        self.is_dark = is_dark
+        self.manual_override = False
+        self.current = self.DARK if self.is_dark else self.LIGHT
 
     def toggle(self):
         self.is_dark = not self.is_dark
+        self.manual_override = True
         self.current = self.DARK if self.is_dark else self.LIGHT
         return self.current
+
+    def set_theme(self, is_dark):
+        self.is_dark = is_dark
+        self.current = self.DARK if self.is_dark else self.LIGHT
+        return self.current
+
+    def sync_with_system(self):
+        if not self.manual_override:
+            try:
+                system_is_dark = darkdetect.isDark()
+                if system_is_dark != self.is_dark:
+                    self.is_dark = system_is_dark
+                    self.current = self.DARK if self.is_dark else self.LIGHT
+                    return True
+            except:
+                pass
+        return False
 
 
 # ===================== 可编辑的规则列表 =====================
@@ -163,13 +221,13 @@ class EditableRuleListbox(tk.Frame):
         self.build_ui()
 
     def build_ui(self):
-        # 全选复选框
         self.select_all_var = tk.BooleanVar(value=False)
         self.select_all_cb = tk.Checkbutton(
             self, text="全选", variable=self.select_all_var,
             command=self.toggle_select_all,
             bg=self.theme["frame_bg"], fg=self.theme["fg"],
             selectcolor=self.theme["frame_bg"],
+            activebackground=self.theme["frame_bg"],
             font=("", self.font_size - 1)
         )
         self.select_all_cb.pack(anchor="w", padx=5, pady=2)
@@ -180,7 +238,8 @@ class EditableRuleListbox(tk.Frame):
         list_container = tk.Frame(self, bg=self.theme["frame_bg"])
         list_container.pack(fill="both", expand=True)
 
-        self.scrollbar = tk.Scrollbar(list_container)
+        self.scrollbar = tk.Scrollbar(list_container, bg=self.theme["scrollbar_bg"],
+                                      troughcolor=self.theme["frame_bg"])
         self.scrollbar.pack(side="right", fill="y")
 
         self.canvas = tk.Canvas(list_container, bg=self.theme["frame_bg"],
@@ -211,12 +270,10 @@ class EditableRuleListbox(tk.Frame):
             var.set(select_all)
 
     def finish_editing(self):
-        """完成编辑"""
         if self.editing_index is not None:
             self.save_edit()
 
     def save_edit(self):
-        """保存编辑的内容"""
         if self.editing_index is None:
             return
 
@@ -233,7 +290,6 @@ class EditableRuleListbox(tk.Frame):
         new_end = end_entry.get().strip()
         new_interval = interval_entry.get().strip()
 
-        # 验证输入
         try:
             datetime.datetime.strptime(new_start, "%H:%M")
             datetime.datetime.strptime(new_end, "%H:%M")
@@ -245,7 +301,6 @@ class EditableRuleListbox(tk.Frame):
             messagebox.showerror("格式错误", "时间格式应为 HH:MM，间隔为数字")
             return
 
-        # 检查与其他规则的冲突（排除当前编辑的规则）
         conflict_result = self.main_app.check_rule_overlap_except(new_start, new_end, idx)
         if conflict_result:
             is_valid, conflict_rule = conflict_result
@@ -253,12 +308,10 @@ class EditableRuleListbox(tk.Frame):
                 messagebox.showwarning(
                     "时段冲突",
                     f"修改后的规则与现有规则时间重叠！\n\n"
-                    f"冲突规则：{conflict_rule['start']} ~ {conflict_rule['end']}\n\n"
-                    f"请调整时间后重试。"
+                    f"冲突规则：{conflict_rule['start']} ~ {conflict_rule['end']}"
                 )
                 return
 
-        # 更新规则
         old_rule = self.rule_items[idx]
         old_rule["start"] = new_start
         old_rule["end"] = new_end
@@ -269,16 +322,24 @@ class EditableRuleListbox(tk.Frame):
         messagebox.showinfo("成功", "规则已更新")
 
     def cancel_edit(self):
-        """取消编辑"""
         self.editing_index = None
         self.edit_widgets.clear()
 
     def start_edit(self, idx):
-        """开始编辑指定行"""
         if self.editing_index is not None:
             self.save_edit()
 
         self.editing_index = idx
+        self.refresh_rules(self.rule_items)
+
+    def update_theme(self, theme):
+        self.theme = theme
+        self.configure(bg=theme["frame_bg"])
+        self.select_all_cb.config(bg=theme["frame_bg"], fg=theme["fg"],
+                                  selectcolor=theme["frame_bg"],
+                                  activebackground=theme["frame_bg"])
+        self.canvas.config(bg=theme["frame_bg"])
+        self.rules_frame.config(bg=theme["frame_bg"])
         self.refresh_rules(self.rule_items)
 
     def refresh_rules(self, rules):
@@ -289,7 +350,7 @@ class EditableRuleListbox(tk.Frame):
 
         if not rules:
             empty_label = tk.Label(self.rules_frame, text="暂无规则，请添加",
-                                   bg=self.theme["frame_bg"], fg=self.theme["placeholder"],
+                                   bg=self.theme["frame_bg"], fg=self.theme["empty_text"],
                                    font=("", self.font_size))
             empty_label.pack(pady=20)
             self.select_all_cb.config(state="disabled")
@@ -298,32 +359,20 @@ class EditableRuleListbox(tk.Frame):
         self.select_all_cb.config(state="normal")
         self.select_all_var.set(False)
 
-        # 表头
         header_frame = tk.Frame(self.rules_frame, bg=self.theme["frame_bg"])
         header_frame.pack(fill="x", pady=2)
 
-        tk.Label(header_frame, text="选择", width=4,
-                 bg=self.theme["frame_bg"], fg=self.theme["fg"],
-                 font=("", self.font_size - 1, "bold")).pack(side="left", padx=2)
-        tk.Label(header_frame, text="开始时间", width=10,
-                 bg=self.theme["frame_bg"], fg=self.theme["fg"],
-                 font=("", self.font_size - 1, "bold")).pack(side="left", padx=3)
-        tk.Label(header_frame, text="结束时间", width=10,
-                 bg=self.theme["frame_bg"], fg=self.theme["fg"],
-                 font=("", self.font_size - 1, "bold")).pack(side="left", padx=3)
-        tk.Label(header_frame, text="间隔(秒)", width=8,
-                 bg=self.theme["frame_bg"], fg=self.theme["fg"],
-                 font=("", self.font_size - 1, "bold")).pack(side="left", padx=3)
-        tk.Label(header_frame, text="操作", width=8,
-                 bg=self.theme["frame_bg"], fg=self.theme["fg"],
-                 font=("", self.font_size - 1, "bold")).pack(side="left", padx=3)
+        headers = [("选择", 4), ("开始时间", 10), ("结束时间", 10), ("间隔(秒)", 8), ("操作", 6)]
+        for text, width in headers:
+            tk.Label(header_frame, text=text, width=width,
+                     bg=self.theme["frame_bg"], fg=self.theme["header_fg"],
+                     font=("", self.font_size - 1, "bold")).pack(side="left", padx=2)
 
         sep = tk.Frame(self.rules_frame, height=1, bg=self.theme["border"])
         sep.pack(fill="x", pady=2)
 
         sorted_rules = sorted(rules, key=lambda x: x["start"])
         for display_idx, rule in enumerate(sorted_rules):
-            # 找到原始索引
             original_idx = self.rule_items.index(rule)
             self.add_rule_row(rule, original_idx, display_idx == self.editing_index)
 
@@ -333,37 +382,41 @@ class EditableRuleListbox(tk.Frame):
         row_frame = tk.Frame(self.rules_frame, bg=self.theme["frame_bg"])
         row_frame.pack(fill="x", pady=1)
 
-        # 复选框
         var = tk.BooleanVar(value=False)
         self.check_vars[idx] = var
         cb = tk.Checkbutton(row_frame, variable=var,
                             bg=self.theme["frame_bg"],
-                            selectcolor=self.theme["frame_bg"])
+                            selectcolor=self.theme["frame_bg"],
+                            activebackground=self.theme["frame_bg"])
         cb.pack(side="left", padx=2)
 
         if is_editing:
-            # 编辑模式 - 显示输入框
-            start_entry = tk.Entry(row_frame, width=8, font=("", self.font_size - 1),
-                                   bg=self.theme["edit_bg"], fg=self.theme["fg"])
+            start_entry = tk.Entry(row_frame, width=10, font=("", self.font_size - 1),
+                                   bg=self.theme["edit_bg"], fg=self.theme["edit_fg"],
+                                   insertbackground=self.theme["fg"],
+                                   relief="solid", bd=1)
             start_entry.insert(0, rule["start"])
-            start_entry.pack(side="left", padx=3)
+            start_entry.pack(side="left", padx=2)
             self.edit_widgets['start'] = start_entry
 
-            end_entry = tk.Entry(row_frame, width=8, font=("", self.font_size - 1),
-                                 bg=self.theme["edit_bg"], fg=self.theme["fg"])
+            end_entry = tk.Entry(row_frame, width=10, font=("", self.font_size - 1),
+                                 bg=self.theme["edit_bg"], fg=self.theme["edit_fg"],
+                                 insertbackground=self.theme["fg"],
+                                 relief="solid", bd=1)
             end_entry.insert(0, rule["end"])
-            end_entry.pack(side="left", padx=3)
+            end_entry.pack(side="left", padx=2)
             self.edit_widgets['end'] = end_entry
 
-            interval_entry = tk.Entry(row_frame, width=6, font=("", self.font_size - 1),
-                                      bg=self.theme["edit_bg"], fg=self.theme["fg"])
+            interval_entry = tk.Entry(row_frame, width=8, font=("", self.font_size - 1),
+                                      bg=self.theme["edit_bg"], fg=self.theme["edit_fg"],
+                                      insertbackground=self.theme["fg"],
+                                      relief="solid", bd=1)
             interval_entry.insert(0, str(rule["interval"]))
-            interval_entry.pack(side="left", padx=3)
+            interval_entry.pack(side="left", padx=2)
             self.edit_widgets['interval'] = interval_entry
 
-            # 保存和取消按钮
             btn_frame = tk.Frame(row_frame, bg=self.theme["frame_bg"])
-            btn_frame.pack(side="left", padx=3)
+            btn_frame.pack(side="left", padx=2)
 
             tk.Button(btn_frame, text="✓", command=self.save_edit,
                       bg=self.theme["success"], fg="white", font=("", 8),
@@ -372,37 +425,29 @@ class EditableRuleListbox(tk.Frame):
                       bg=self.theme["danger"], fg="white", font=("", 8),
                       width=2, relief="flat", cursor="hand2").pack(side="left", padx=1)
 
-            # 绑定回车键保存
             start_entry.bind("<Return>", lambda e: self.save_edit())
             end_entry.bind("<Return>", lambda e: self.save_edit())
             interval_entry.bind("<Return>", lambda e: self.save_edit())
-
-            # 绑定ESC取消
             start_entry.bind("<Escape>", lambda e: self.cancel_edit())
-            end_entry.bind("<Escape>", lambda e: self.cancel_edit())
-            interval_entry.bind("<Escape>", lambda e: self.cancel_edit())
 
-            # 自动聚焦
             start_entry.focus()
         else:
-            # 显示模式
             tk.Label(row_frame, text=rule["start"], width=10,
-                     bg=self.theme["frame_bg"], fg=self.theme["fg"],
-                     font=("", self.font_size - 1)).pack(side="left", padx=3)
+                     bg=self.theme["frame_bg"], fg=self.theme["list_fg"],
+                     font=("", self.font_size - 1)).pack(side="left", padx=2)
 
             tk.Label(row_frame, text=rule["end"], width=10,
-                     bg=self.theme["frame_bg"], fg=self.theme["fg"],
-                     font=("", self.font_size - 1)).pack(side="left", padx=3)
+                     bg=self.theme["frame_bg"], fg=self.theme["list_fg"],
+                     font=("", self.font_size - 1)).pack(side="left", padx=2)
 
             tk.Label(row_frame, text=str(rule["interval"]), width=8,
-                     bg=self.theme["frame_bg"], fg=self.theme["fg"],
-                     font=("", self.font_size - 1)).pack(side="left", padx=3)
+                     bg=self.theme["frame_bg"], fg=self.theme["list_fg"],
+                     font=("", self.font_size - 1)).pack(side="left", padx=2)
 
-            # 编辑按钮
             edit_btn = tk.Button(row_frame, text="✎", command=lambda i=idx: self.start_edit(i),
                                  bg=self.theme["primary"], fg="white", font=("", 8),
                                  width=2, relief="flat", cursor="hand2")
-            edit_btn.pack(side="left", padx=3)
+            edit_btn.pack(side="left", padx=2)
 
     def get_selected_rules(self):
         selected = []
@@ -410,9 +455,6 @@ class EditableRuleListbox(tk.Frame):
             if var.get():
                 selected.append(idx)
         return selected
-
-    def get_all_rules(self):
-        return self.rule_items
 
 
 # ===================== 时间选择器 =====================
@@ -452,12 +494,14 @@ class TimePicker(tk.Toplevel):
 
         hour_spin = tk.Spinbox(time_frame, from_=0, to=23, textvariable=self.hour_var,
                                width=5, font=("", 18), justify="center",
-                               bg=self.theme["entry_bg"], fg=fg, relief="flat")
+                               bg=self.theme["entry_bg"], fg=fg, relief="flat",
+                               buttonbackground=self.theme["primary"])
         hour_spin.pack(side="left", padx=8)
         tk.Label(time_frame, text=":", font=("", 18, "bold"), bg=bg, fg=fg).pack(side="left")
         minute_spin = tk.Spinbox(time_frame, from_=0, to=59, textvariable=self.minute_var,
                                  width=5, font=("", 18), justify="center",
-                                 bg=self.theme["entry_bg"], fg=fg, relief="flat")
+                                 bg=self.theme["entry_bg"], fg=fg, relief="flat",
+                                 buttonbackground=self.theme["primary"])
         minute_spin.pack(side="left", padx=8)
 
         tk.Label(self, text="快捷选择", font=("", 10), bg=bg, fg=fg).pack(pady=(15, 5))
@@ -473,7 +517,7 @@ class TimePicker(tk.Toplevel):
         action_frame = tk.Frame(self, bg=bg)
         action_frame.pack(pady=15)
         tk.Button(action_frame, text="取消", command=self.cancel, width=12,
-                  bg="#94A3B8", fg="white", relief="flat", cursor="hand2").pack(side="left", padx=8)
+                  bg=self.theme["border"], fg=self.theme["fg"], relief="flat", cursor="hand2").pack(side="left", padx=8)
         tk.Button(action_frame, text="确认", command=self.confirm, width=12,
                   bg=self.theme["primary"], fg="white", relief="flat", cursor="hand2").pack(side="left", padx=8)
 
@@ -506,10 +550,10 @@ class TimeInput(tk.Frame):
 
         default_time = datetime.datetime.now().strftime("%H:%M")
 
-        self.entry = tk.Entry(self, width=9, bg=theme["entry_bg"], fg=theme["fg"], relief="flat")
+        self.entry = tk.Entry(self, width=9, bg=theme["entry_bg"], fg=theme["entry_fg"],
+                              relief="solid", bd=1, insertbackground=theme["fg"])
         self.entry.pack(side="left", padx=(0, 5))
         self.entry.insert(0, default_time)
-        self.is_placeholder = False
 
         self.btn = tk.Button(self, text="🕐", width=2, command=self.open_picker,
                              bg=theme["primary"], fg="white", relief="flat", cursor="hand2",
@@ -533,10 +577,9 @@ class TimeInput(tk.Frame):
     def set(self, v):
         self.entry.delete(0, "end")
         self.entry.insert(0, v)
-        self.entry.config(fg=self.theme["fg"])
 
 
-# ===================== 纯天蓝玻璃悬浮球 =====================
+# ===================== 悬浮球 =====================
 class GlassFloatBall:
     def __init__(self, root, main_app, theme):
         self.root = root
@@ -591,7 +634,7 @@ class GlassFloatBall:
                 self.update_raindrops()
             else:
                 self.update_ripples()
-            self.draw_glass_ball()
+            self.draw_ball()
         self.root.after(40, self.animate)
 
     def update_ripples(self):
@@ -629,20 +672,20 @@ class GlassFloatBall:
                 new_d.append(d)
         self.raindrops = new_d[:20]
 
-    def draw_glass_ball(self):
+    def draw_ball(self):
         img = Image.new("RGBA", (self.SIZE, self.SIZE), (255, 0, 255, 0))
         draw = ImageDraw.Draw(img)
         cx, cy = self.SIZE // 2, self.SIZE // 2
 
-        sky_blue = (80, 190, 250)
+        ball_color = self.theme.get("ball_color", (80, 180, 250))
         if self.main_app.running:
-            sky_blue = (70, 180, 240)
+            ball_color = tuple(max(0, c - 15) for c in ball_color)
         if self.pressing:
-            sky_blue = tuple(min(255, c + 15) for c in sky_blue)
+            ball_color = tuple(min(255, c + 15) for c in ball_color)
 
         draw.ellipse((cx - self.RADIUS, cy - self.RADIUS,
                       cx + self.RADIUS, cy + self.RADIUS),
-                     fill=sky_blue)
+                     fill=ball_color)
 
         draw.ellipse((cx - self.RADIUS, cy - self.RADIUS,
                       cx + self.RADIUS, cy + self.RADIUS),
@@ -720,6 +763,9 @@ class GlassFloatBall:
         self.ball.withdraw()
         self.animating = False
 
+    def update_theme(self, theme):
+        self.theme = theme
+
 
 # ===================== 主界面 =====================
 class ScreenshotTool(tk.Tk):
@@ -762,7 +808,7 @@ class ScreenshotTool(tk.Tk):
         self.bind("<F11>", self.toggle_fullscreen)
         self.protocol("WM_DELETE_WINDOW", self.close_app)
         self.bind("<Unmap>", lambda e: self.minimize_to_tray() if self.state() == "iconic" else None)
-        self.bind("<Map>", lambda e: self.float_ball.hide() if hasattr(self, 'float_ball') else None)
+        self.bind("<Map>", self.on_window_map)
 
         self.build_ui()
         self.apply_theme()
@@ -777,6 +823,8 @@ class ScreenshotTool(tk.Tk):
         self.refresh_rule_list()
         self.update_monitor_info()
         self.update_ui_info()
+
+        self.check_system_theme()
 
     def _get_dpi_scale(self):
         try:
@@ -801,26 +849,80 @@ class ScreenshotTool(tk.Tk):
         self.geometry(f"+{x}+{y}")
         self.update()
 
+    def check_system_theme(self):
+        if self.theme_manager.sync_with_system():
+            self.theme = self.theme_manager.current
+            self.apply_theme()
+            self.status_label.config(fg=self.theme["status_run"] if self.running else self.theme["status_stop"])
+            if hasattr(self, 'float_ball'):
+                self.float_ball.update_theme(self.theme)
+            self.rule_listbox.update_theme(self.theme)
+        self.after(2000, self.check_system_theme)
+
+    def on_window_map(self, event):
+        if hasattr(self, 'float_ball'):
+            self.float_ball.hide()
+
     def apply_theme(self):
         t = self.theme
         self.configure(bg=t["bg"])
+
+        # 更新主题按钮
+        self.theme_btn.config(text="🌙" if not self.theme_manager.is_dark else "☀️",
+                              bg=t["primary"])
+
+        # 更新所有组件
         for w in self.winfo_children():
             self._apply_theme(w, t)
+
+        # 专门更新状态标签
+        self.status_label.config(bg=t["status_label_bg"],
+                                 fg=t["status_stop"] if not self.running else t["status_run"])
+
+        # 更新停止按钮
+        if self.running:
+            self.stop_btn.config(bg=t["stop_btn_enabled_bg"], fg=t["stop_btn_enabled_fg"])
+        else:
+            self.stop_btn.config(bg=t["stop_btn_disabled_bg"], fg=t["stop_btn_disabled_fg"])
+            self.start_btn.config(bg=t["primary"], fg="white")
 
     def _apply_theme(self, w, t):
         try:
             if isinstance(w, (tk.Frame, tk.LabelFrame)):
                 w.config(bg=t["frame_bg"])
+                if isinstance(w, tk.LabelFrame):
+                    w.config(fg=t["frame_fg"])
             elif isinstance(w, tk.Label):
-                if w != self.status_label:
+                if w == self.status_label:
+                    w.config(bg=t["status_label_bg"])
+                else:
                     w.config(bg=w.master["bg"], fg=t["fg"])
             elif isinstance(w, tk.Entry):
-                w.config(bg=t["entry_bg"], fg=t["entry_fg"], relief="flat", insertbackground=t["fg"])
+                if w.cget('state') == 'readonly':
+                    w.config(readonlybackground=t["entry_bg"], fg=t["path_entry_fg"])
+                else:
+                    w.config(bg=t["entry_bg"], fg=t["entry_fg"], relief="solid", bd=1,
+                             insertbackground=t["fg"])
             elif isinstance(w, tk.Button):
-                if w not in [self.start_btn, self.stop_btn, self.theme_btn]:
+                if w == self.stop_btn:
+                    if w.cget('state') == 'disabled':
+                        w.config(bg=t["stop_btn_disabled_bg"], fg=t["stop_btn_disabled_fg"])
+                    else:
+                        w.config(bg=t["stop_btn_enabled_bg"], fg=t["stop_btn_enabled_fg"])
+                elif w == self.start_btn:
+                    if w.cget('state') != 'disabled':
+                        w.config(bg=t["primary"], fg="white")
+                elif w == self.theme_btn:
+                    w.config(bg=t["primary"])
+                elif w not in [self.theme_btn]:
                     w.config(relief="flat", cursor="hand2")
             elif isinstance(w, tk.Checkbutton):
-                w.config(bg=t["frame_bg"], fg=t["fg"], selectcolor=t["frame_bg"])
+                w.config(bg=t["frame_bg"], fg=t["fg"], selectcolor=t["frame_bg"],
+                         activebackground=t["frame_bg"])
+            elif isinstance(w, ttk.Combobox):
+                style = ttk.Style()
+                style.map('TCombobox', fieldbackground=[('readonly', t["entry_bg"])])
+                style.map('TCombobox', foreground=[('readonly', t["fg"])])
         except:
             pass
         for c in w.winfo_children():
@@ -828,15 +930,13 @@ class ScreenshotTool(tk.Tk):
 
     def toggle_theme(self):
         self.theme = self.theme_manager.toggle()
-        self.theme_btn.config(text="☀️" if self.theme_manager.is_dark else "🌙")
         self.apply_theme()
-        self.status_label.config(fg=self.theme["status_run"] if self.running else self.theme["status_stop"])
         if hasattr(self, 'float_ball'):
-            self.float_ball.theme = self.theme
+            self.float_ball.update_theme(self.theme)
+        self.rule_listbox.update_theme(self.theme)
         self.refresh_rule_list()
 
     def check_rule_overlap(self, new_start, new_end):
-        """检查新规则是否与现有规则冲突"""
         new_s = datetime.datetime.strptime(new_start, "%H:%M")
         new_e = datetime.datetime.strptime(new_end, "%H:%M")
 
@@ -856,7 +956,6 @@ class ScreenshotTool(tk.Tk):
         return True, None
 
     def check_rule_overlap_except(self, new_start, new_end, exclude_index):
-        """检查新规则是否与现有规则冲突（排除指定索引）"""
         new_s = datetime.datetime.strptime(new_start, "%H:%M")
         new_e = datetime.datetime.strptime(new_end, "%H:%M")
 
@@ -916,7 +1015,6 @@ class ScreenshotTool(tk.Tk):
         self.entry_interval.insert(0, "60")
 
     def delete_selected_rules(self):
-        # 先完成可能正在进行的编辑
         self.rule_listbox.finish_editing()
 
         selected = self.rule_listbox.get_selected_rules()
@@ -1002,29 +1100,42 @@ class ScreenshotTool(tk.Tk):
         main = tk.Frame(self, bg=self.theme["bg"])
         main.pack(fill="both", expand=True, padx=10, pady=8)
 
+        # 标题栏 - 使用grid布局确保按钮居中
         tf = tk.Frame(main, bg=self.theme["bg"])
         tf.pack(fill="x", pady=(0, 5))
-        tk.Label(tf, text="📸 分时段自动截屏工具", font=("", self.title_font_size, "bold"),
-                 bg=self.theme["bg"], fg=self.theme["fg"]).pack(side="left")
-        self.theme_btn = tk.Button(tf, text="🌙" if not self.theme_manager.is_dark else "☀️",
-                                   command=self.toggle_theme, width=2,
-                                   bg=self.theme["primary"], fg="white", relief="flat", cursor="hand2",
-                                   font=("", 10))
-        self.theme_btn.pack(side="right")
 
+        # 使用grid布局让标题和按钮都在同一行且垂直居中
+        tf.grid_columnconfigure(0, weight=1)
+        tf.grid_columnconfigure(1, weight=0)
+
+        tk.Label(tf, text="📸 分时段自动截屏工具", font=("", self.title_font_size, "bold"),
+                 bg=self.theme["bg"], fg=self.theme["fg"]).grid(row=0, column=0, sticky="w")
+
+        # 主题按钮 - 固定大小，文字居中
+        self.theme_btn = tk.Button(tf, text="🌙" if not self.theme_manager.is_dark else "☀️",
+                                   command=self.toggle_theme, width=3, height=1,
+                                   bg=self.theme["primary"], fg="white", relief="flat", cursor="hand2",
+                                   font=("", 11))
+        self.theme_btn.grid(row=0, column=1, sticky="e", padx=(0, 5))
+
+        # 保存设置
         pf = tk.LabelFrame(main, text="📁 保存设置", font=("", self.font_size, "bold"),
-                           bg=self.theme["frame_bg"], fg=self.theme["fg"])
+                           bg=self.theme["frame_bg"], fg=self.theme["frame_fg"])
         pf.pack(fill="x", pady=3)
         pr = tk.Frame(pf, bg=self.theme["frame_bg"])
         pr.pack(fill="x", padx=6, pady=6)
         tk.Entry(pr, textvariable=self.save_path, state="readonly",
-                 font=("", self.font_size), width=35).pack(side="left", fill="x", expand=True, padx=3)
+                 font=("", self.font_size), width=35,
+                 bg=self.theme["entry_bg"], fg=self.theme["path_entry_fg"],
+                 readonlybackground=self.theme["entry_bg"],
+                 relief="solid", bd=1).pack(side="left", fill="x", expand=True, padx=3)
         tk.Button(pr, text="浏览", command=self.select_path,
                   bg=self.theme["primary"], fg="white", padx=10, pady=2,
                   font=("", self.font_size - 1)).pack(side="left")
 
+        # 截图设置
         sf = tk.LabelFrame(main, text="⚙️ 截图设置", font=("", self.font_size, "bold"),
-                           bg=self.theme["frame_bg"], fg=self.theme["fg"])
+                           bg=self.theme["frame_bg"], fg=self.theme["frame_fg"])
         sf.pack(fill="x", pady=3)
         sr = tk.Frame(sf, bg=self.theme["frame_bg"])
         sr.pack(fill="x", padx=6, pady=6)
@@ -1032,7 +1143,9 @@ class ScreenshotTool(tk.Tk):
         tk.Label(sr, text="默认间隔：", bg=self.theme["frame_bg"], fg=self.theme["fg"],
                  font=("", self.font_size)).pack(side="left")
         tk.Entry(sr, textvariable=self.default_interval, width=6,
-                 font=("", self.font_size)).pack(side="left", padx=3)
+                 font=("", self.font_size),
+                 bg=self.theme["entry_bg"], fg=self.theme["entry_fg"],
+                 relief="solid", bd=1).pack(side="left", padx=3)
         tk.Label(sr, text="秒", bg=self.theme["frame_bg"], fg=self.theme["fg"],
                  font=("", self.font_size)).pack(side="left")
 
@@ -1042,8 +1155,9 @@ class ScreenshotTool(tk.Tk):
                           state="readonly", width=12, font=("", self.font_size))
         cb.pack(side="left")
 
+        # 分时段规则
         rf = tk.LabelFrame(main, text="⏰ 分时段规则（点击✎编辑）", font=("", self.font_size, "bold"),
-                           bg=self.theme["frame_bg"], fg=self.theme["fg"])
+                           bg=self.theme["frame_bg"], fg=self.theme["frame_fg"])
         rf.pack(fill="both", expand=True, pady=3)
 
         inf = tk.Frame(rf, bg=self.theme["frame_bg"])
@@ -1062,7 +1176,9 @@ class ScreenshotTool(tk.Tk):
 
         tk.Label(inf, text="间隔：", bg=self.theme["frame_bg"], fg=self.theme["fg"],
                  font=("", self.font_size)).grid(row=0, column=4, padx=2)
-        self.entry_interval = tk.Entry(inf, width=5, font=("", self.font_size))
+        self.entry_interval = tk.Entry(inf, width=5, font=("", self.font_size),
+                                       bg=self.theme["entry_bg"], fg=self.theme["entry_fg"],
+                                       relief="solid", bd=1)
         self.entry_interval.grid(row=0, column=5, padx=2)
         self.entry_interval.insert(0, "60")
         tk.Label(inf, text="秒", bg=self.theme["frame_bg"], fg=self.theme["fg"],
@@ -1084,8 +1200,9 @@ class ScreenshotTool(tk.Tk):
         self.rule_listbox = EditableRuleListbox(rf, self.theme, self.font_size, self)
         self.rule_listbox.pack(fill="both", expand=True, padx=6, pady=(2, 6))
 
+        # 状态信息
         stf = tk.LabelFrame(main, text="📊 运行状态", font=("", self.font_size, "bold"),
-                            bg=self.theme["frame_bg"], fg=self.theme["fg"])
+                            bg=self.theme["frame_bg"], fg=self.theme["frame_fg"])
         stf.pack(fill="x", pady=3)
         str_frame = tk.Frame(stf, bg=self.theme["frame_bg"])
         str_frame.pack(fill="x", padx=6, pady=6)
@@ -1116,9 +1233,10 @@ class ScreenshotTool(tk.Tk):
         self.remain_label.grid(row=2, column=0, columnspan=2, sticky="w", padx=6, pady=1)
 
         self.status_label = tk.Label(stf, text="● 已停止", fg=self.theme["status_stop"],
-                                     bg=self.theme["frame_bg"], font=("", self.font_size + 1, "bold"))
-        self.status_label.pack(pady=5)
+                                     bg=self.theme["status_label_bg"], font=("", self.font_size + 1, "bold"))
+        self.status_label.pack(pady=5, fill="x")
 
+        # 控制按钮
         ctrl_frame = tk.Frame(main, bg=self.theme["bg"])
         ctrl_frame.pack(pady=6)
 
@@ -1129,7 +1247,8 @@ class ScreenshotTool(tk.Tk):
         self.start_btn.pack(side="left", padx=6)
 
         self.stop_btn = tk.Button(ctrl_frame, text="⏹ 停止截图", command=self.stop,
-                                  bg="#E2E8F0", fg="#64748B",
+                                  bg=self.theme["stop_btn_disabled_bg"],
+                                  fg=self.theme["stop_btn_disabled_fg"],
                                   font=("", self.font_size, "bold"),
                                   padx=18, pady=5, relief="flat", cursor="hand2",
                                   state="disabled")
@@ -1181,15 +1300,18 @@ class ScreenshotTool(tk.Tk):
             return
 
         self.running = True
-        self.start_btn.config(state="disabled", bg="#E2E8F0", fg="#64748B")
-        self.stop_btn.config(state="normal", bg=self.theme["danger"], fg="white")
+        self.start_btn.config(state="disabled", bg=self.theme["stop_btn_disabled_bg"],
+                              fg=self.theme["stop_btn_disabled_fg"])
+        self.stop_btn.config(state="normal", bg=self.theme["stop_btn_enabled_bg"],
+                             fg=self.theme["stop_btn_enabled_fg"])
         self.status_label.config(text="● 运行中", fg=self.theme["status_run"])
         threading.Thread(target=self.shot, daemon=True).start()
 
     def stop(self):
         self.running = False
         self.start_btn.config(state="normal", bg=self.theme["primary"], fg="white")
-        self.stop_btn.config(state="disabled", bg="#E2E8F0", fg="#64748B")
+        self.stop_btn.config(state="disabled", bg=self.theme["stop_btn_disabled_bg"],
+                             fg=self.theme["stop_btn_disabled_fg"])
         self.status_label.config(text="● 已停止", fg=self.theme["status_stop"])
 
     def init_tray_icon(self):
@@ -1206,7 +1328,7 @@ class ScreenshotTool(tk.Tk):
         try:
             img = Image.open(self.icon_path)
         except:
-            img = Image.new("RGB", (32, 32), "#4FC3F7")
+            img = Image.new("RGB", (32, 32), "#4A90E2" if not self.theme_manager.is_dark else "#388BFD")
 
         menu = Menu(Item("显示窗口", show), Item("退出", quit_app))
         self.tray_icon = Icon("ScreenshotTool", img, menu=menu)
