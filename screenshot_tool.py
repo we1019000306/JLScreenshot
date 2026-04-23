@@ -112,11 +112,13 @@ class ThemeManager:
         "primary_hover": "#81D4FA",
         "danger": "#EF5350",
         "warning": "#FF9800",
+        "success": "#26A69A",
         "border": "#E2E8F0",
         "list_select": "#4FC3F7",
         "status_run": "#26A69A",
         "status_stop": "#EF5350",
         "placeholder": "#94A3B8",
+        "edit_bg": "#FFF9C4",
     }
     DARK = {
         "bg": "#1E293B",
@@ -127,11 +129,13 @@ class ThemeManager:
         "primary": "#4FC3F7",
         "danger": "#EF5350",
         "warning": "#FF9800",
+        "success": "#26A69A",
         "border": "#475569",
         "list_select": "#4FC3F7",
         "status_run": "#26A69A",
         "status_stop": "#EF5350",
         "placeholder": "#64748B",
+        "edit_bg": "#5D4E37",
     }
 
     def __init__(self):
@@ -144,18 +148,22 @@ class ThemeManager:
         return self.current
 
 
-# ===================== 带复选框的规则列表 =====================
-class CheckboxListbox(tk.Frame):
-    def __init__(self, master, theme, font_size, **kwargs):
+# ===================== 可编辑的规则列表 =====================
+class EditableRuleListbox(tk.Frame):
+    def __init__(self, master, theme, font_size, main_app, **kwargs):
         super().__init__(master, bg=theme["frame_bg"])
         self.theme = theme
         self.font_size = font_size
+        self.main_app = main_app
         self.check_vars = {}
         self.rule_items = []
+        self.editing_index = None
+        self.edit_widgets = {}
 
         self.build_ui()
 
     def build_ui(self):
+        # 全选复选框
         self.select_all_var = tk.BooleanVar(value=False)
         self.select_all_cb = tk.Checkbutton(
             self, text="全选", variable=self.select_all_var,
@@ -202,6 +210,77 @@ class CheckboxListbox(tk.Frame):
         for var in self.check_vars.values():
             var.set(select_all)
 
+    def finish_editing(self):
+        """完成编辑"""
+        if self.editing_index is not None:
+            self.save_edit()
+
+    def save_edit(self):
+        """保存编辑的内容"""
+        if self.editing_index is None:
+            return
+
+        idx = self.editing_index
+        start_entry = self.edit_widgets.get('start')
+        end_entry = self.edit_widgets.get('end')
+        interval_entry = self.edit_widgets.get('interval')
+
+        if not all([start_entry, end_entry, interval_entry]):
+            self.cancel_edit()
+            return
+
+        new_start = start_entry.get().strip()
+        new_end = end_entry.get().strip()
+        new_interval = interval_entry.get().strip()
+
+        # 验证输入
+        try:
+            datetime.datetime.strptime(new_start, "%H:%M")
+            datetime.datetime.strptime(new_end, "%H:%M")
+            new_interval_int = int(new_interval)
+            if new_interval_int < 3:
+                messagebox.showwarning("提示", "截图间隔不能小于3秒")
+                return
+        except ValueError:
+            messagebox.showerror("格式错误", "时间格式应为 HH:MM，间隔为数字")
+            return
+
+        # 检查与其他规则的冲突（排除当前编辑的规则）
+        conflict_result = self.main_app.check_rule_overlap_except(new_start, new_end, idx)
+        if conflict_result:
+            is_valid, conflict_rule = conflict_result
+            if not is_valid:
+                messagebox.showwarning(
+                    "时段冲突",
+                    f"修改后的规则与现有规则时间重叠！\n\n"
+                    f"冲突规则：{conflict_rule['start']} ~ {conflict_rule['end']}\n\n"
+                    f"请调整时间后重试。"
+                )
+                return
+
+        # 更新规则
+        old_rule = self.rule_items[idx]
+        old_rule["start"] = new_start
+        old_rule["end"] = new_end
+        old_rule["interval"] = new_interval_int
+
+        self.cancel_edit()
+        self.refresh_rules(self.rule_items)
+        messagebox.showinfo("成功", "规则已更新")
+
+    def cancel_edit(self):
+        """取消编辑"""
+        self.editing_index = None
+        self.edit_widgets.clear()
+
+    def start_edit(self, idx):
+        """开始编辑指定行"""
+        if self.editing_index is not None:
+            self.save_edit()
+
+        self.editing_index = idx
+        self.refresh_rules(self.rule_items)
+
     def refresh_rules(self, rules):
         for widget in self.rules_frame.winfo_children():
             widget.destroy()
@@ -219,33 +298,42 @@ class CheckboxListbox(tk.Frame):
         self.select_all_cb.config(state="normal")
         self.select_all_var.set(False)
 
+        # 表头
         header_frame = tk.Frame(self.rules_frame, bg=self.theme["frame_bg"])
         header_frame.pack(fill="x", pady=2)
 
         tk.Label(header_frame, text="选择", width=4,
                  bg=self.theme["frame_bg"], fg=self.theme["fg"],
                  font=("", self.font_size - 1, "bold")).pack(side="left", padx=2)
-        tk.Label(header_frame, text="开始时间", width=8,
+        tk.Label(header_frame, text="开始时间", width=10,
                  bg=self.theme["frame_bg"], fg=self.theme["fg"],
-                 font=("", self.font_size - 1, "bold")).pack(side="left", padx=5)
-        tk.Label(header_frame, text="结束时间", width=8,
+                 font=("", self.font_size - 1, "bold")).pack(side="left", padx=3)
+        tk.Label(header_frame, text="结束时间", width=10,
                  bg=self.theme["frame_bg"], fg=self.theme["fg"],
-                 font=("", self.font_size - 1, "bold")).pack(side="left", padx=5)
+                 font=("", self.font_size - 1, "bold")).pack(side="left", padx=3)
         tk.Label(header_frame, text="间隔(秒)", width=8,
                  bg=self.theme["frame_bg"], fg=self.theme["fg"],
-                 font=("", self.font_size - 1, "bold")).pack(side="left", padx=5)
+                 font=("", self.font_size - 1, "bold")).pack(side="left", padx=3)
+        tk.Label(header_frame, text="操作", width=8,
+                 bg=self.theme["frame_bg"], fg=self.theme["fg"],
+                 font=("", self.font_size - 1, "bold")).pack(side="left", padx=3)
 
         sep = tk.Frame(self.rules_frame, height=1, bg=self.theme["border"])
         sep.pack(fill="x", pady=2)
 
         sorted_rules = sorted(rules, key=lambda x: x["start"])
-        for idx, rule in enumerate(sorted_rules):
-            self.add_rule_row(rule, idx)
+        for display_idx, rule in enumerate(sorted_rules):
+            # 找到原始索引
+            original_idx = self.rule_items.index(rule)
+            self.add_rule_row(rule, original_idx, display_idx == self.editing_index)
 
-    def add_rule_row(self, rule, idx):
+        self.rule_items = sorted_rules
+
+    def add_rule_row(self, rule, idx, is_editing=False):
         row_frame = tk.Frame(self.rules_frame, bg=self.theme["frame_bg"])
         row_frame.pack(fill="x", pady=1)
 
+        # 复选框
         var = tk.BooleanVar(value=False)
         self.check_vars[idx] = var
         cb = tk.Checkbutton(row_frame, variable=var,
@@ -253,17 +341,68 @@ class CheckboxListbox(tk.Frame):
                             selectcolor=self.theme["frame_bg"])
         cb.pack(side="left", padx=2)
 
-        tk.Label(row_frame, text=rule["start"], width=8,
-                 bg=self.theme["frame_bg"], fg=self.theme["fg"],
-                 font=("", self.font_size - 1)).pack(side="left", padx=5)
+        if is_editing:
+            # 编辑模式 - 显示输入框
+            start_entry = tk.Entry(row_frame, width=8, font=("", self.font_size - 1),
+                                   bg=self.theme["edit_bg"], fg=self.theme["fg"])
+            start_entry.insert(0, rule["start"])
+            start_entry.pack(side="left", padx=3)
+            self.edit_widgets['start'] = start_entry
 
-        tk.Label(row_frame, text=rule["end"], width=8,
-                 bg=self.theme["frame_bg"], fg=self.theme["fg"],
-                 font=("", self.font_size - 1)).pack(side="left", padx=5)
+            end_entry = tk.Entry(row_frame, width=8, font=("", self.font_size - 1),
+                                 bg=self.theme["edit_bg"], fg=self.theme["fg"])
+            end_entry.insert(0, rule["end"])
+            end_entry.pack(side="left", padx=3)
+            self.edit_widgets['end'] = end_entry
 
-        tk.Label(row_frame, text=str(rule["interval"]), width=8,
-                 bg=self.theme["frame_bg"], fg=self.theme["fg"],
-                 font=("", self.font_size - 1)).pack(side="left", padx=5)
+            interval_entry = tk.Entry(row_frame, width=6, font=("", self.font_size - 1),
+                                      bg=self.theme["edit_bg"], fg=self.theme["fg"])
+            interval_entry.insert(0, str(rule["interval"]))
+            interval_entry.pack(side="left", padx=3)
+            self.edit_widgets['interval'] = interval_entry
+
+            # 保存和取消按钮
+            btn_frame = tk.Frame(row_frame, bg=self.theme["frame_bg"])
+            btn_frame.pack(side="left", padx=3)
+
+            tk.Button(btn_frame, text="✓", command=self.save_edit,
+                      bg=self.theme["success"], fg="white", font=("", 8),
+                      width=2, relief="flat", cursor="hand2").pack(side="left", padx=1)
+            tk.Button(btn_frame, text="✗", command=self.cancel_edit,
+                      bg=self.theme["danger"], fg="white", font=("", 8),
+                      width=2, relief="flat", cursor="hand2").pack(side="left", padx=1)
+
+            # 绑定回车键保存
+            start_entry.bind("<Return>", lambda e: self.save_edit())
+            end_entry.bind("<Return>", lambda e: self.save_edit())
+            interval_entry.bind("<Return>", lambda e: self.save_edit())
+
+            # 绑定ESC取消
+            start_entry.bind("<Escape>", lambda e: self.cancel_edit())
+            end_entry.bind("<Escape>", lambda e: self.cancel_edit())
+            interval_entry.bind("<Escape>", lambda e: self.cancel_edit())
+
+            # 自动聚焦
+            start_entry.focus()
+        else:
+            # 显示模式
+            tk.Label(row_frame, text=rule["start"], width=10,
+                     bg=self.theme["frame_bg"], fg=self.theme["fg"],
+                     font=("", self.font_size - 1)).pack(side="left", padx=3)
+
+            tk.Label(row_frame, text=rule["end"], width=10,
+                     bg=self.theme["frame_bg"], fg=self.theme["fg"],
+                     font=("", self.font_size - 1)).pack(side="left", padx=3)
+
+            tk.Label(row_frame, text=str(rule["interval"]), width=8,
+                     bg=self.theme["frame_bg"], fg=self.theme["fg"],
+                     font=("", self.font_size - 1)).pack(side="left", padx=3)
+
+            # 编辑按钮
+            edit_btn = tk.Button(row_frame, text="✎", command=lambda i=idx: self.start_edit(i),
+                                 bg=self.theme["primary"], fg="white", font=("", 8),
+                                 width=2, relief="flat", cursor="hand2")
+            edit_btn.pack(side="left", padx=3)
 
     def get_selected_rules(self):
         selected = []
@@ -587,7 +726,6 @@ class ScreenshotTool(tk.Tk):
     def __init__(self):
         super().__init__()
 
-        # 先隐藏窗口，避免闪烁
         self.withdraw()
 
         self.theme_manager = ThemeManager()
@@ -596,12 +734,11 @@ class ScreenshotTool(tk.Tk):
         self.font_size = max(10, min(13, int(11 * self.dpi_scale)))
         self.title_font_size = int(16 * self.dpi_scale)
 
-        # 增加窗口高度确保所有内容显示完整
-        self.window_width = 680
-        self.window_height = 800  # 从750增加到800
-        self.minsize(650, 750)  # 最小高度也增加
+        self.window_width = 720
+        self.window_height = 800
+        self.minsize(680, 750)
 
-        self.title("JLScreenShot")
+        self.title("分时段自动截屏工具")
 
         self.icon_path = resource_path("icon.ico")
         try:
@@ -630,7 +767,6 @@ class ScreenshotTool(tk.Tk):
         self.build_ui()
         self.apply_theme()
 
-        # 设置窗口位置并显示
         self._center_window()
         self.update_idletasks()
         self.update()
@@ -649,7 +785,6 @@ class ScreenshotTool(tk.Tk):
             return 1.0
 
     def _center_window(self):
-        """居中显示窗口"""
         self.update_idletasks()
         m = get_monitors()[0]
 
@@ -658,7 +793,6 @@ class ScreenshotTool(tk.Tk):
         x = m.x + (m.width - self.window_width) // 2
         y = m.y + (m.height - self.window_height) // 2
 
-        # 确保窗口不超出屏幕
         if y < m.y:
             y = m.y + 10
         if y + self.window_height > m.y + m.height:
@@ -702,6 +836,7 @@ class ScreenshotTool(tk.Tk):
         self.refresh_rule_list()
 
     def check_rule_overlap(self, new_start, new_end):
+        """检查新规则是否与现有规则冲突"""
         new_s = datetime.datetime.strptime(new_start, "%H:%M")
         new_e = datetime.datetime.strptime(new_end, "%H:%M")
 
@@ -709,6 +844,29 @@ class ScreenshotTool(tk.Tk):
             new_e += datetime.timedelta(days=1)
 
         for rule in self.schedule_rules:
+            exist_s = datetime.datetime.strptime(rule["start"], "%H:%M")
+            exist_e = datetime.datetime.strptime(rule["end"], "%H:%M")
+
+            if exist_e <= exist_s:
+                exist_e += datetime.timedelta(days=1)
+
+            if new_s < exist_e and new_e > exist_s:
+                return False, rule
+
+        return True, None
+
+    def check_rule_overlap_except(self, new_start, new_end, exclude_index):
+        """检查新规则是否与现有规则冲突（排除指定索引）"""
+        new_s = datetime.datetime.strptime(new_start, "%H:%M")
+        new_e = datetime.datetime.strptime(new_end, "%H:%M")
+
+        if new_e <= new_s:
+            new_e += datetime.timedelta(days=1)
+
+        for idx, rule in enumerate(self.schedule_rules):
+            if idx == exclude_index:
+                continue
+
             exist_s = datetime.datetime.strptime(rule["start"], "%H:%M")
             exist_e = datetime.datetime.strptime(rule["end"], "%H:%M")
 
@@ -758,6 +916,9 @@ class ScreenshotTool(tk.Tk):
         self.entry_interval.insert(0, "60")
 
     def delete_selected_rules(self):
+        # 先完成可能正在进行的编辑
+        self.rule_listbox.finish_editing()
+
         selected = self.rule_listbox.get_selected_rules()
         if not selected:
             messagebox.showinfo("提示", "请先选中要删除的规则")
@@ -772,6 +933,8 @@ class ScreenshotTool(tk.Tk):
             messagebox.showinfo("成功", f"已删除 {count} 条规则")
 
     def delete_all_rules(self):
+        self.rule_listbox.finish_editing()
+
         if not self.schedule_rules:
             messagebox.showinfo("提示", "暂无规则可删除")
             return
@@ -836,11 +999,9 @@ class ScreenshotTool(tk.Tk):
             self.remain_label.config(text="📊  等待首次截图")
 
     def build_ui(self):
-        # 主容器 - 使用更紧凑的间距
         main = tk.Frame(self, bg=self.theme["bg"])
         main.pack(fill="both", expand=True, padx=10, pady=8)
 
-        # 标题栏
         tf = tk.Frame(main, bg=self.theme["bg"])
         tf.pack(fill="x", pady=(0, 5))
         tk.Label(tf, text="📸 分时段自动截屏工具", font=("", self.title_font_size, "bold"),
@@ -851,7 +1012,6 @@ class ScreenshotTool(tk.Tk):
                                    font=("", 10))
         self.theme_btn.pack(side="right")
 
-        # 保存设置
         pf = tk.LabelFrame(main, text="📁 保存设置", font=("", self.font_size, "bold"),
                            bg=self.theme["frame_bg"], fg=self.theme["fg"])
         pf.pack(fill="x", pady=3)
@@ -863,7 +1023,6 @@ class ScreenshotTool(tk.Tk):
                   bg=self.theme["primary"], fg="white", padx=10, pady=2,
                   font=("", self.font_size - 1)).pack(side="left")
 
-        # 截图设置
         sf = tk.LabelFrame(main, text="⚙️ 截图设置", font=("", self.font_size, "bold"),
                            bg=self.theme["frame_bg"], fg=self.theme["fg"])
         sf.pack(fill="x", pady=3)
@@ -883,8 +1042,7 @@ class ScreenshotTool(tk.Tk):
                           state="readonly", width=12, font=("", self.font_size))
         cb.pack(side="left")
 
-        # 分时段规则
-        rf = tk.LabelFrame(main, text="⏰ 分时段规则", font=("", self.font_size, "bold"),
+        rf = tk.LabelFrame(main, text="⏰ 分时段规则（点击✎编辑）", font=("", self.font_size, "bold"),
                            bg=self.theme["frame_bg"], fg=self.theme["fg"])
         rf.pack(fill="both", expand=True, pady=3)
 
@@ -923,10 +1081,9 @@ class ScreenshotTool(tk.Tk):
                   bg=self.theme["warning"], fg="white", font=("", self.font_size - 1),
                   padx=6, pady=1, relief="flat", cursor="hand2").pack(side="left", padx=2)
 
-        self.rule_listbox = CheckboxListbox(rf, self.theme, self.font_size)
+        self.rule_listbox = EditableRuleListbox(rf, self.theme, self.font_size, self)
         self.rule_listbox.pack(fill="both", expand=True, padx=6, pady=(2, 6))
 
-        # 状态信息
         stf = tk.LabelFrame(main, text="📊 运行状态", font=("", self.font_size, "bold"),
                             bg=self.theme["frame_bg"], fg=self.theme["fg"])
         stf.pack(fill="x", pady=3)
@@ -962,7 +1119,6 @@ class ScreenshotTool(tk.Tk):
                                      bg=self.theme["frame_bg"], font=("", self.font_size + 1, "bold"))
         self.status_label.pack(pady=5)
 
-        # 控制按钮
         ctrl_frame = tk.Frame(main, bg=self.theme["bg"])
         ctrl_frame.pack(pady=6)
 
