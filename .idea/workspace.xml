@@ -5,21 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="3107dca3-b11b-4015-93e8-e5186fe8aa94" name="更改" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/.gitignore" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/screenshot.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/build/screenshot_tool/Analysis-00.toc" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/build/screenshot_tool/EXE-00.toc" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/build/screenshot_tool/PKG-00.toc" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/build/screenshot_tool/PYZ-00.pyz" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/build/screenshot_tool/PYZ-00.toc" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/build/screenshot_tool/base_library.zip" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/build/screenshot_tool/screenshot_tool.pkg" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/build/screenshot_tool/warn-screenshot_tool.txt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/build/screenshot_tool/xref-screenshot_tool.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/screenshot_tool.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -50,7 +36,9 @@
     "Python.screenshot_tool.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager": "true",
-    "git-widget-placeholder": "develop"
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "develop",
+    "settings.editor.selected.configurable": "preferences.lookFeel"
   }
 }]]></component>
   <component name="SharedIndexes">
